@@ -8,7 +8,7 @@ import json
 app = Flask(__name__)
 api = Api(app)
 
-class Games(Resource):
+class GamesPath(Resource):
     # Get all games
     def get(self):
         games = []
@@ -16,18 +16,28 @@ class Games(Resource):
             games.append({
                 "id": str(game.id),
                 "finished": game.finished,
+                "players": [str(player.name) for player in game.players],
             })
         return Response(json.dumps(games), status=200)
 
     # Create a new game
     # Using POST b/c we are adding a new resource (the game)
+    # Returns 201 Created, Location, and resource representation per RFC 7231
     def post(self):
-        game = Game(players=[])
+        player_names = json.loads(request.data)
+        player_objs = [Player(name=player_name) for player_name in player_names]
+        game = Game(players=player_objs)
         created_game = game.save()
-        msg = {"id": str(created_game.id)}
-        return Response(json.dumps(msg), status=201)
+        msg = {
+            "id": str(created_game.id),
+            "finished": created_game.finished,
+            "players": player_names,
+        }
+        response = Response(json.dumps(msg), status=201, content_type='application/json')
+        response.headers['Location'] = '/games/{}'.format(created_game.id)
+        return response
 
-class Game(Resource):
+class GamePath(Resource):
     # Get a game's data
     def get(self, game_id):
         pass
@@ -41,8 +51,8 @@ class Game(Resource):
     def delete(self, game_id):
         pass
 
-api.add_resource(Games, '/games')
-api.add_resource(Game, '/games/<string:game_id>')
+api.add_resource(GamesPath, '/games')
+api.add_resource(GamePath, '/games/<string:game_id>')
 
 if __name__ == '__main__':
     app.run(debug=True)

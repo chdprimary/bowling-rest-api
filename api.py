@@ -21,6 +21,50 @@ def _generate_error_JSON(e):
         status=status
     )
 
+def _generate_player_scores(rolls):
+    frame_scores = []
+
+    for idx, val in enumerate(rolls):
+        # if final frame has strike or spare, add additional points
+        if idx > 18 and (rolls[18] == 10 or sum(rolls[18:20]) == 10):
+            frame_scores[9] += val
+            continue
+
+        # if frame's first roll
+        if idx % 2 == 0:
+            frame_score = val
+
+            # add additional points if strike
+            if val == 10:
+                # skip over filler 0
+                if idx + 2 < len(rolls) - 1:
+                    frame_score += rolls[idx+2]
+                if idx + 3 < len(rolls) - 1:
+                    # if rolls[idx+2] was strike, skip another filler 0
+                    if rolls[idx+2] == 10:
+                        frame_score += rolls[idx+4]
+                    elif idx + 4 < len(rolls) - 1:
+                        frame_score += rolls[idx+3]
+
+            frame_scores.append(frame_score)
+        else:
+            # frame score is 1st roll + 2nd roll
+            frame_score = frame_scores[-1] + val
+
+            # add additional points if spare
+            # 2nd roll must not be filler 0 from earlier strike
+            if val != 0 and frame_score == 10:
+                # get next roll if exists
+                if idx + 1 < len(rolls) - 1:
+                    frame_score += rolls[idx+1]
+
+            frame_scores[-1] = frame_score
+
+    return {
+        "frame_scores": frame_scores,
+        "total": sum(frame_scores),
+    }
+
 class GamesPath(Resource):
     # Get all games
     def get(self):
@@ -78,6 +122,7 @@ class GamePath(Resource):
             for player in found_game.players:
                 data = {
                     'name': player.name,
+                    'scores': _generate_player_scores(player.rolls),
                     'rolls': [roll for roll in player.rolls],
                     'roll_count': len(player.rolls),
                 }
@@ -103,12 +148,11 @@ class GamePath(Resource):
             if roll_score < 0 or roll_score > 10:
                 raise InvalidQueryError('Number of pins bowled should be between 0 and 10 (inclusive).')
 
-            # iterate players, the first player with the lowest num rolls is current
-            # if len(rolls)%2 == 1, they are mid-frame and guaranteed current player
-            # mongodb result set order isn't guaranteed to remain same: stackoverflow.com/a/11599283
+            # find the 'current player' to attribute the roll to
             curr_max_num_rolls = 21
             curr_player = None
             for player in game.players:
+                # if have 20 rolls and strike or spare in final frame, this is fill ball
                 if len(player.rolls) == 20:
                     if sum(player.rolls[18:]) < 10:
                         continue
@@ -116,20 +160,26 @@ class GamePath(Resource):
                         curr_player = player
                         break
 
+                # player with the lowest number of rolls is the current player
                 if len(player.rolls) < curr_max_num_rolls:
                     curr_max_num_rolls = len(player.rolls)
                     curr_player = player
 
+                # if mid-frame (and not final frame), guaranteed to be current player
                 if len(player.rolls) != 21 and len(player.rolls) % 2 == 1:
                     break
 
             if curr_player is not None:
+                # if 2nd frame roll, make sure total <= 10 (unless final frame)
                 if (len(curr_player.rolls) <= 18 and len(curr_player.rolls) % 2 == 1
                     and (curr_player.rolls[-1] + roll_score) > 10):
-                        raise InvalidQueryError('Cannot roll {}. Only {} pins remain.' \
+                        raise InvalidQueryError('Cannot roll {}. Only {} pins are standing.' \
                                                 .format(roll_score, 10-player.rolls[-1]))
-                if len(curr_player.rolls) < 18 and roll_score == 10:
-                    curr_player.rolls += [roll_score, 0]
+                # if score is 10 and not final frame and not 2nd frame roll, add strike & filler 0
+                # else add score normally
+                if (len(curr_player.rolls) < 18 and len(player.rolls) % 2 == 0 
+                    and roll_score == 10):
+                        curr_player.rolls += [10, 0]
                 else:
                     curr_player.rolls += [roll_score]
                 curr_player.save()

@@ -9,18 +9,34 @@ After cloning the repo, in the project directory:
 2. Use curl, insomnia, postman, or another REST client to send requests to ```localhost:5000``` as described below
 
 # actions
-* ```GET localhost:5000/games``` - retrieves a list of all games.
-* ```POST localhost:5000/games``` - creates a new game. Returns a representation of the created resource. Use the following request body:
+* ```GET localhost:5000/games``` - retrieves a list of all games. No request body needed.
 ```
+* RESPONSE
+* Codes: 200 OK
+* Headers: Content-Type
+* Returns a list of all games, finished and unfinished.
+```
+* ```POST localhost:5000/games``` - creates a new game. 
+```
+* REQUEST
+* required
+* Content-Type: application/json
 [
   <string:player_name>,
   <string:player_name>,
   ...
 ]
 ```
-*```GET localhost:5000/games/:gameid``` - retrieves a specific game, including player score/roll information. 
-*```PUT localhost:5000/games/:gameid``` - updates the game with a new roll. Use the following request body:
 ```
-<text:roll_score>
+* RESPONSE
+* Codes: 302 Created
+* Headers: Location
+* Returns a representation of the created resource.
 ```
-*```DELETE localhost:5000/games/:gameid``` - deletes the specified game resource. Returns nothing.
+* ```GET localhost:5000/games/:gameid``` - retrieves a specific game, including player score/roll information. No request body. Response code may be 400 Bad Request or 404 Not Found.
+* ```PUT localhost:5000/games/:gameid``` - updates the game with a new roll. Use the following request body:
+```
+* required
+<text:roll_score>  # should be integer between 0 and 10, inclusive.
+```
+* ```DELETE localhost:5000/games/:gameid``` - deletes the specified game resource. Returns no response body.

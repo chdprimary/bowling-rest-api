@@ -1,6 +1,6 @@
 from flask import Flask, request, Response
 from flask_restful import Resource, Api
-from mongoengine import DoesNotExist
+from mongoengine import InvalidQueryError, DoesNotExist
 
 from models import Game, Player
 
@@ -10,8 +10,12 @@ app = Flask(__name__)
 api = Api(app)
 
 def _generate_error_JSON(e):
+    exception_into_status = {
+        'DoesNotExist': 404,
+        'InvalidQueryError': 400,
+    }
     msg = {'error': str(e)}
-    status = (404 if isinstance(e,DoesNotExist) else 500)
+    status = exception_into_status.get(type(e).__name__, 500)
     return Response(
         json.dumps(msg),
         status=status
@@ -62,7 +66,6 @@ class GamesPath(Resource):
             return response
 
 class GamePath(Resource):
-
     # Get a specific game's data
     def get(self, game_id):
         try:
@@ -70,8 +73,16 @@ class GamePath(Resource):
             msg = {
                 'id': str(found_game.id),
                 'finished': found_game.finished,
-                'players': [str(player.name) for player in found_game.players],
             }
+            players = []
+            for player in found_game.players:
+                data = {
+                    'name': player.name,
+                    'rolls': [roll for roll in player.rolls],
+                    'roll_count': len(player.rolls),
+                }
+                players.append(data)
+            msg['players'] = players
             return Response(
                 json.dumps(msg),
                 status=200,
@@ -85,19 +96,49 @@ class GamePath(Resource):
     # Using PUT b/c we are updating an existing resource with a new roll
     def put(self, game_id):
         try:
-            found_game = Game.objects.get(id=game_id)
-            if not found_game.finished:
-                roll_score = int(request.data)
-                if roll_score >= 0 and roll_score <= 10:
-                    msg = {
-                        'roll_score': roll_score
-                    }
-                    return Response(
-                        json.dumps(msg),
-                        status=200,
-                        content_type='application/json'
-                    )
-        except (DoesNotExist, Exception) as e:
+            game = Game.objects.get(id=game_id)
+            if game.finished:
+                raise InvalidQueryError('This game (id: {}) has ended.'.format(game_id))
+            roll_score = int(request.data)
+            if roll_score < 0 or roll_score > 10:
+                raise InvalidQueryError('Number of pins bowled should be between 0 and 10 (inclusive).')
+
+            # iterate players, the first player with the lowest num rolls is current
+            # if len(rolls)%2 == 1, they are mid-frame and guaranteed current player
+            # mongodb result set order isn't guaranteed to remain same: stackoverflow.com/a/11599283
+            curr_max_num_rolls = 21
+            curr_player = None
+            for player in game.players:
+                if len(player.rolls) == 20:
+                    if sum(player.rolls[18:]) < 10:
+                        continue
+                    else:
+                        curr_player = player
+                        break
+
+                if len(player.rolls) < curr_max_num_rolls:
+                    curr_max_num_rolls = len(player.rolls)
+                    curr_player = player
+
+                if len(player.rolls) != 21 and len(player.rolls) % 2 == 1:
+                    break
+
+            if curr_player is not None:
+                if (len(curr_player.rolls) <= 18 and len(curr_player.rolls) % 2 == 1
+                    and (curr_player.rolls[-1] + roll_score) > 10):
+                        raise InvalidQueryError('Cannot roll {}. Only {} pins remain.' \
+                                                .format(roll_score, 10-player.rolls[-1]))
+                if len(curr_player.rolls) < 18 and roll_score == 10:
+                    curr_player.rolls += [roll_score, 0]
+                else:
+                    curr_player.rolls += [roll_score]
+                curr_player.save()
+            else:
+                game.finished = True
+                game.save()
+
+            return self.get(game_id)
+        except (DoesNotExist, InvalidQueryError, Exception) as e:
             response = _generate_error_JSON(e)
             return response
 

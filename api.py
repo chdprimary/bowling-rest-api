@@ -204,8 +204,23 @@ class GamePath(Resource):
             response = _generate_error_JSON(e)
             return response
 
+# Big Lebowski Easter Egg
+class DudePath(Resource):
+    def get(self):
+        msg = {
+            'quotes': [
+                'The Dude abides',
+                'Well, that\'s just, like, your opinion, man',
+                'You are entering a world of pain.',
+        }
+        return Response(
+            msg,
+            status=200
+        )
+
 api.add_resource(GamesPath, '/games')
 api.add_resource(GamePath, '/games/<string:game_id>')
+api.add_resource(DudePath, '/thedude')
 
 if __name__ == '__main__':
     app.run(debug=True)

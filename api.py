@@ -209,13 +209,15 @@ class DudePath(Resource):
     def get(self):
         msg = {
             'quotes': [
-                'The Dude abides',
-                'Well, that\'s just, like, your opinion, man',
+                'The Dude abides.',
+                'Well, that\'s just, like, your opinion, man.',
                 'You are entering a world of pain.',
+            ]
         }
         return Response(
-            msg,
-            status=200
+            json.dumps(msg),
+            status=200,
+            content_type='application/json'
         )
 
 api.add_resource(GamesPath, '/games')

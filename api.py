@@ -1,10 +1,10 @@
+import json
+
 from flask import Flask, request, Response
 from flask_restful import Resource, Api
 from mongoengine import InvalidQueryError, DoesNotExist
 
 from models import Game, Player
-
-import json
 
 app = Flask(__name__)
 api = Api(app)
@@ -36,15 +36,16 @@ def _generate_player_scores(rolls):
 
             # add additional points if strike
             if val == 10:
-                # skip over filler 0
-                if idx + 2 < len(rolls) - 1:
+                # skip over filler 0 for 1st resolving roll
+                if idx + 2 <= len(rolls) - 1:
                     frame_score += rolls[idx+2]
-                if idx + 3 < len(rolls) - 1:
-                    # if rolls[idx+2] was strike, skip another filler 0
-                    if rolls[idx+2] == 10:
-                        frame_score += rolls[idx+4]
-                    elif idx + 4 < len(rolls) - 1:
-                        frame_score += rolls[idx+3]
+
+                # get 2nd resolving roll based on if 1st was strike or not
+                if idx + 3 <= len(rolls) - 1 and rolls[idx+2] != 10:
+                    frame_score += rolls[idx+3]
+                elif idx + 4 <= len(rolls) - 1 and rolls[idx+2] == 10:
+                    # if 1st resolving roll was strike, skip another filler 0
+                    frame_score += rolls[idx+4]
 
             frame_scores.append(frame_score)
         else:
@@ -91,6 +92,8 @@ class GamesPath(Resource):
     def post(self):
         try:
             player_names = json.loads(request.data)
+            if len(player_names) < 1 or len(player_names) > 5:
+                raise InvalidQueryError('Number of players must be between 1 and 5, inclusive.')
             player_objs = [Player(name=player_name) for player_name in player_names]
             game = Game(players=player_objs)
             created_game = game.save()
@@ -105,7 +108,7 @@ class GamesPath(Resource):
                 content_type='application/json',
                 headers={'Location':'/games/{}'.format(created_game.id)}
             )
-        except Exception as e:
+        except (InvalidQueryError, Exception) as e:
             response = _generate_error_JSON(e)
             return response
 
@@ -174,10 +177,10 @@ class GamePath(Resource):
                 if (len(curr_player.rolls) <= 18 and len(curr_player.rolls) % 2 == 1
                     and (curr_player.rolls[-1] + roll_score) > 10):
                         raise InvalidQueryError('Cannot roll {}. Only {} pins are standing.' \
-                                                .format(roll_score, 10-player.rolls[-1]))
+                                                .format(roll_score, 10-curr_player.rolls[-1]))
                 # if score is 10 and not final frame and not 2nd frame roll, add strike & filler 0
                 # else add score normally
-                if (len(curr_player.rolls) < 18 and len(player.rolls) % 2 == 0 
+                if (len(curr_player.rolls) < 18 and len(curr_player.rolls) % 2 == 0
                     and roll_score == 10):
                         curr_player.rolls += [10, 0]
                 else:

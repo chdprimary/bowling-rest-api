@@ -1,4 +1,13 @@
-from mongoengine import *
+from mongoengine import (
+    Document,
+    EmbeddedDocument,
+    EmbeddedDocumentField,
+    StringField,
+    BooleanField,
+    ListField,
+    IntField,
+    connect
+)
 
 connect('bowlapp_mongodb')
 
@@ -8,4 +17,4 @@ class Player(EmbeddedDocument):
 
 class Game(Document):
     finished = BooleanField(default=False)
-    players = ListField(EmbeddedDocumentField(Player), min_length=1, max_length=4, required=True)
+    players = ListField(EmbeddedDocumentField(Player), required=True)

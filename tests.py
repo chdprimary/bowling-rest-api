@@ -3,7 +3,7 @@ import json
 from unittest import TestCase, main
 from mongoengine import connect
 
-from api import app
+from api import app, _generate_player_scores
 from models import Game, Player
 
 class GamesPathTest(TestCase):
@@ -76,6 +76,12 @@ class GamePathTest(TestCase):
 
     def test_nonallowed_method(self):
         pass
+
+class ScoreTests(TestCase):
+    def test_scores_are_calculated_correctly(self):
+        scores = [10, 0, 10, 0, 10, 0]
+        score_info = _generate_player_scores(scores)
+        self.assertEqual(score_info['total'], 60)
 
 if __name__ == '__main__':
     main(warnings='ignore')

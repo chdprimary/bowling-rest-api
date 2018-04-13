@@ -1,3 +1,5 @@
+See also: my bowling [webapp](https://github.com/chdprimary/bowling-score-tracker), made with Django and Selenium (for e2e tests).
+
 # dependencies
 1. Flask-RESTful ```pip install flask-restful```
 2. MongoEngine ```pip install mongoengine```
@@ -17,8 +19,7 @@ After cloning the repo, in the project directory:
 ```
 * ```POST localhost:5000/games``` - creates a new game. 
 ```
-* REQUEST
-* required
+* REQUEST (required)
 * Content-Type: application/json
 [
   <string:player_name>,
@@ -40,8 +41,7 @@ After cloning the repo, in the project directory:
 ```
 * ```PUT localhost:5000/games/:gameid``` - updates the game with a new roll. 
 ```
-* REQUEST
-* required
+* REQUEST (required)
 <text:roll_score>  # should be plain integer between 0 and 10, inclusive.
 ```
 ```
